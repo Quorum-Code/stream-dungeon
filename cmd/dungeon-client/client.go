@@ -5,15 +5,16 @@ import (
 	"fmt"
 	"net"
 	"os"
+	"time"
 )
 
 func main() {
-	// if len(os.Args) == 1 {
-	// 	fmt.Println("host:port required")
-	// 	os.Exit(1)
-	// }
+	if len(os.Args) == 1 {
+		fmt.Println("host:port required")
+		os.Exit(1)
+	}
 
-	tcpAddr, err := net.ResolveTCPAddr("tcp4", ":1200" /*os.Args[1]*/)
+	tcpAddr, err := net.ResolveTCPAddr("tcp4", os.Args[1])
 
 	if err != nil {
 		fmt.Println(err)
@@ -40,8 +41,12 @@ func handleConnection(conn net.Conn) {
 
 	reader := bufio.NewReader(os.Stdin)
 
+	start := time.Now()
+
 	for {
 		data, err := bufio.NewReader(conn).ReadString('\n')
+		fmt.Println(time.Since(start))
+
 		if err != nil {
 			fmt.Println(err)
 			return
@@ -50,6 +55,7 @@ func handleConnection(conn net.Conn) {
 
 		fmt.Print("Client(You): ")
 		text, _ := reader.ReadString('\n')
+		start = time.Now()
 		conn.Write([]byte(text))
 	}
 }

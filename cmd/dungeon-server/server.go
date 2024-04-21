@@ -13,7 +13,7 @@ func main() {
 	// 	os.Exit(1)
 	// }
 
-	tcpAddr, err := net.ResolveTCPAddr("tcp4", ":1200" /*os.Args[1]*/)
+	tcpAddr, err := net.ResolveTCPAddr("tcp4", os.Args[1])
 
 	if err != nil {
 		fmt.Println(err)
