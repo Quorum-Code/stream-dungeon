@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"net"
 	"os"
-	"time"
+	"strings"
 )
 
 func main() {
@@ -32,7 +32,7 @@ func main() {
 }
 
 func handleConnection(conn net.Conn) {
-	_, err := conn.Write([]byte("Hello tcp server!\n"))
+	_, err := conn.Write([]byte("Hello tcp server!\n$"))
 	fmt.Println("sending...")
 	if err != nil {
 		fmt.Println(err)
@@ -41,21 +41,35 @@ func handleConnection(conn net.Conn) {
 
 	reader := bufio.NewReader(os.Stdin)
 
-	start := time.Now()
+	tcpReader := bufio.NewReader(conn)
 
 	for {
-		data, err := bufio.NewReader(conn).ReadString('\n')
-		fmt.Println(time.Since(start))
+		err := readServerMessage(*tcpReader)
 
 		if err != nil {
 			fmt.Println(err)
 			return
 		}
-		fmt.Print("Server: ", string(data))
 
-		fmt.Print("Client(You): ")
+		fmt.Print("> ")
 		text, _ := reader.ReadString('\n')
-		start = time.Now()
-		conn.Write([]byte(text))
+		conn.Write([]byte(text + "$"))
 	}
+}
+
+func readServerMessage(tcpReader bufio.Reader) error {
+	data, err := tcpReader.ReadString('$')
+
+	if err != nil {
+		return err
+	}
+
+	data = strings.Trim(data, "$")
+
+	fmt.Println("---------")
+	fmt.Println("SERVER")
+	fmt.Println("")
+	fmt.Print(data)
+	fmt.Println("---------")
+	return nil
 }
