@@ -9,6 +9,11 @@ import (
 	"strings"
 )
 
+type ClientConnection struct {
+	Conn      net.Conn
+	TCPReader bufio.Reader
+}
+
 func main() {
 	if len(os.Args) == 1 {
 		fmt.Println("host:port required")
@@ -44,61 +49,45 @@ func main() {
 func handleConnection(conn net.Conn) {
 	defer conn.Close()
 
+	cliConn := ClientConnection{Conn: conn, TCPReader: *bufio.NewReader(conn)}
+
 	fmt.Println("connection started...")
 
-	askConnection(conn, []string{"Login", "Create Account"})
+	command := askCommand(cliConn, []string{"Login", "Create Account"})
 
-	handleNewConnection(conn)
+	if command == "Create Account" {
+		fmt.Println("starting create account...")
+		name, err := cliConn.askText("Enter a new Username: ", 3)
 
-	for {
-		data, err := bufio.NewReader(conn).ReadString('\n')
 		if err != nil {
 			fmt.Println(err)
-			return
+		} else {
+			fmt.Println(name)
 		}
 
-		fmt.Print("> ", string(data))
+	} else {
+		fmt.Println("closing connection...")
+	}
+}
 
-		_, err = conn.Write([]byte("hello client!\n"))
+func (cliConn ClientConnection) askText(prompt string, minChars int) (string, error) {
+	cliConn.Write(prompt)
+
+	for {
+		data, err := readClientMessage(cliConn.TCPReader)
 		if err != nil {
-			fmt.Println(err)
-			return
+			return "", err
+		}
+
+		if len(data) > minChars {
+			return data, nil
+		} else {
+			cliConn.Write(fmt.Sprintf("must be more than %d characters long\n\n", minChars) + prompt)
 		}
 	}
 }
 
-func handleNewConnection(conn net.Conn) {
-	// user := ""
-	// pass := ""
-
-	for {
-		_, err := conn.Write([]byte("[C]reate account, [L]ogin\n"))
-		if err != nil {
-			fmt.Println(err)
-			return
-		}
-
-		data, err := bufio.NewReader(conn).ReadString('\n')
-		if err != nil {
-			fmt.Println(err)
-			return
-		}
-
-		if len(data) == 0 {
-			continue
-		}
-
-		if data[0] == 'C' {
-			fmt.Println("got create command...")
-			break
-		} else if data[0] == 'L' {
-			fmt.Println("got login command...")
-			break
-		}
-	}
-}
-
-func askConnection(conn net.Conn, cmds []string) string {
+func askCommand(cliConn ClientConnection, cmds []string) string {
 	invalidResponse := "invalid command, try again...\n"
 
 	for {
@@ -108,27 +97,38 @@ func askConnection(conn net.Conn, cmds []string) string {
 		}
 		prompt += "$"
 
-		conn.Write([]byte(prompt))
+		cliConn.Write(prompt)
 
-		data, err := bufio.NewReader(conn).ReadString('$')
-		data = strings.Trim(data, "$")
+		data, err := readClientMessage(cliConn.TCPReader)
 		if err != nil {
 			fmt.Println(err)
 			return ""
 		}
 
-		fmt.Println(data)
-		conn.Write([]byte(invalidResponse))
+		for i := range cmds {
+			if isCommandMatch(cmds[i], i, data) {
+				return cmds[i]
+			}
+		}
+
+		fmt.Println("CMD: ", data)
+		fmt.Println("****")
+		cliConn.Write(invalidResponse)
 	}
 }
 
 func isCommandMatch(cmd string, index int, input string) bool {
+	cmd = strings.ToLower(cmd)
+	input = strings.ToLower(input)
+	input = strings.TrimSpace(input)
+
 	if strings.Index(cmd, input) == 0 {
 		return true
 	}
 
 	inputIndex, err := strconv.Atoi(input)
 	if err != nil {
+		fmt.Println(input, " not a number?")
 		return false
 	}
 	if index == inputIndex {
@@ -138,18 +138,24 @@ func isCommandMatch(cmd string, index int, input string) bool {
 	return false
 }
 
-func readClientMessage(tcpReader bufio.Reader) error {
+func readClientMessage(tcpReader bufio.Reader) (string, error) {
 	data, err := tcpReader.ReadString('$')
 
 	if err != nil {
-		return err
+		return "", err
 	}
 
 	data = strings.Trim(data, "$")
 
 	fmt.Println("---------")
-	fmt.Println("Client:")
+	fmt.Println("CLIENT")
+	fmt.Println("")
 	fmt.Print(data)
 	fmt.Println("---------")
-	return nil
+	return data, nil
+}
+
+func (cliConn *ClientConnection) Write(text string) error {
+	_, err := cliConn.Conn.Write([]byte(text + "$"))
+	return err
 }

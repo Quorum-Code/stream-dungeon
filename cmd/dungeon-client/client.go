@@ -3,6 +3,7 @@ package main
 import (
 	"bufio"
 	"fmt"
+	"io"
 	"net"
 	"os"
 	"strings"
@@ -15,14 +16,12 @@ func main() {
 	}
 
 	tcpAddr, err := net.ResolveTCPAddr("tcp4", os.Args[1])
-
 	if err != nil {
 		fmt.Println(err)
 		os.Exit(1)
 	}
 
 	conn, err := net.DialTCP("tcp", nil, tcpAddr)
-
 	if err != nil {
 		fmt.Println(err)
 		os.Exit(1)
@@ -32,19 +31,16 @@ func main() {
 }
 
 func handleConnection(conn net.Conn) {
-	_, err := conn.Write([]byte("Hello tcp server!\n$"))
-	fmt.Println("sending...")
-	if err != nil {
-		fmt.Println(err)
-		os.Exit(1)
-	}
-
 	reader := bufio.NewReader(os.Stdin)
-
 	tcpReader := bufio.NewReader(conn)
 
 	for {
 		err := readServerMessage(*tcpReader)
+
+		if err == io.EOF {
+			fmt.Println("Connection closed by server...")
+			return
+		}
 
 		if err != nil {
 			fmt.Println(err)
@@ -69,7 +65,7 @@ func readServerMessage(tcpReader bufio.Reader) error {
 	fmt.Println("---------")
 	fmt.Println("SERVER")
 	fmt.Println("")
-	fmt.Print(data)
+	fmt.Println(data)
 	fmt.Println("---------")
 	return nil
 }
